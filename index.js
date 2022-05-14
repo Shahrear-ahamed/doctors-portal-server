@@ -22,19 +22,38 @@ const run = async () => {
   try {
     // client start here
     await client.connect();
-    const doctorsCollection = client
+    const servicesCollection = client
       .db("doctors_portal")
       .collection("services");
     const bookingCollection = client.db("doctors_portal").collection("booking");
 
     app.get("/service", async (req, res) => {
       const query = {};
-      const cursor = doctorsCollection.find(query);
+      const cursor = servicesCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
     });
 
-    
+    app.get("/available", async (req, res) => {
+      const date = req.query.date || "May 14, 2022";
+      // get all service
+      const services = await servicesCollection.find().toArray();
+
+      // get booked service
+      const query = { date };
+      const bookings = await bookingCollection.find(query).toArray();
+
+      // for each service, find booking for that service
+      services.forEach((service) => {
+        const serviceBookings = bookings.filter(
+          (b) => b.treatment === service.name
+        );
+        const booked = serviceBookings.map((s) => s.slot);
+        const available = service.slots.filter((a) => !booked.includes(a));
+        service.available = available;
+      });
+      res.send(bookings);
+    });
 
     // booking user treatment info
     app.post("/booking", async (req, res) => {
