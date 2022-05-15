@@ -57,18 +57,28 @@ const run = async () => {
       res.send(result);
     });
 
-    //
+    // make admin secure
+    app.get("/admin/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = await userCollection.findOne({ email });
+      const isAdmin = user.email;
+      res.send({ admin: isAdmin });
+    });
 
     // make a user admin role
     app.put("/user/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      console.log(email);
-      const filter = { email };
-      const updateDoc = {
-        $set: { role: "admin" },
-      };
-      const result = await userCollection.updateOne(filter, updateDoc);
-      res.send(result);
+      const requestedAdmin = req.headers.email;
+      if (requestedAdmin.role === "admin") {
+        const filter = { email };
+        const updateDoc = {
+          $set: { role: "admin" },
+        };
+        const result = await userCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      } else {
+        res.status(403).send({ message: "Forbidden access" });
+      }
     });
     // store or update user login info means has or not
     app.put("/user/:email", async (req, res) => {
@@ -81,7 +91,7 @@ const run = async () => {
       };
       const result = await userCollection.updateOne(filter, updateDoc, options);
       const token = jwt.sign({ email }, process.env.ACCESS_TOKEN, {
-        expiresIn: "1h",
+        expiresIn: "1d",
       });
       res.send({ result, token });
     });
