@@ -26,11 +26,25 @@ const run = async () => {
       .db("doctors_portal")
       .collection("services");
     const bookingCollection = client.db("doctors_portal").collection("booking");
+    const userCollection = client.db("doctors_portal").collection("user");
 
     app.get("/service", async (req, res) => {
       const query = {};
       const cursor = servicesCollection.find(query);
       const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    // store or update user login info means has or not
+    app.put("/user/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const filter = { email };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: user,
+      };
+      const result = await userCollection.updateOne(filter, updateDoc, options);
       res.send(result);
     });
 
@@ -68,11 +82,10 @@ const run = async () => {
       const booking = req.body;
       const query = {
         treatment: booking.treatment,
-        treatmentDate: booking.treatmentDate,
+        date: booking.date,
         patient: booking.patient,
       };
       const exist = await bookingCollection.findOne(query);
-      console.log(exist, query);
       if (exist) {
         return res.send({ success: false, booking: exist });
       }
