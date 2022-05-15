@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 require("dotenv").config();
 const port = process.env.PORT || 5000;
@@ -8,6 +9,20 @@ const app = express();
 // middle ware are here
 app.use(cors());
 app.use(express.json());
+const verifyToken = (req, res, next) => {
+  const header = req.headers.authorization;
+  if (!header) {
+    return res.status(401).send({ message: "Unauthorize access" });
+  }
+  const token = header.split(" ")[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN, function (err, decoded) {
+    if (err) {
+      return res.status(403).send({ message: "Forbidden access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.wzbz9.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, {
@@ -35,6 +50,26 @@ const run = async () => {
       res.send(result);
     });
 
+    // get all user from database
+
+    app.get("/users", async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    });
+
+    //
+
+    // make a user admin role
+    app.put("/user/admin/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      console.log(email);
+      const filter = { email };
+      const updateDoc = {
+        $set: { role: "admin" },
+      };
+      const result = await userCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
     // store or update user login info means has or not
     app.put("/user/:email", async (req, res) => {
       const email = req.params.email;
@@ -45,7 +80,10 @@ const run = async () => {
         $set: user,
       };
       const result = await userCollection.updateOne(filter, updateDoc, options);
-      res.send(result);
+      const token = jwt.sign({ email }, process.env.ACCESS_TOKEN, {
+        expiresIn: "1h",
+      });
+      res.send({ result, token });
     });
 
     app.get("/available", async (req, res) => {
@@ -70,11 +108,16 @@ const run = async () => {
     });
 
     // show user booking info
-    app.get("/booking", async (req, res) => {
+    app.get("/booking", verifyToken, async (req, res) => {
       const email = req.query.patient;
-      const query = { patient: email };
-      const result = await bookingCollection.find(query).toArray();
-      res.send(result);
+      const decodedEmail = req.decoded.email;
+      if (decodedEmail === email) {
+        const query = { patient: email };
+        const result = await bookingCollection.find(query).toArray();
+        return res.send(result);
+      } else {
+        return res.status(401).send({ message: "Forbidden access" });
+      }
     });
 
     // booking user treatment info
