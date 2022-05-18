@@ -31,8 +31,6 @@ const client = new MongoClient(uri, {
   serverApi: ServerApiVersion.v1,
 });
 
-// console.log(uri);
-
 const run = async () => {
   try {
     // client start here
@@ -43,6 +41,18 @@ const run = async () => {
     const bookingCollection = client.db("doctors_portal").collection("booking");
     const userCollection = client.db("doctors_portal").collection("user");
     const doctorCollection = client.db("doctors_portal").collection("doctor");
+
+    const verifyAdmin = async (req, res, next) => {
+      const requestedAdmin = req.decoded.email;
+      const requestedAccount = await userCollection.findOne({
+        email: requestedAdmin,
+      });
+      if (requestedAccount.role === "admin") {
+        next();
+      } else {
+        res.status(403).send("Forbidden Access");
+      }
+    };
 
     app.get("/service", async (req, res) => {
       const query = {};
@@ -67,20 +77,20 @@ const run = async () => {
     });
 
     // make a user admin role
-    app.put("/user/admin/:email", verifyToken, async (req, res) => {
-      const email = req.params.email;
-      const requestedAdmin = req.headers.email;
-      if (requestedAdmin.role === "admin") {
+    app.put(
+      "/user/admin/:email",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const email = req.params.email;
         const filter = { email };
         const updateDoc = {
           $set: { role: "admin" },
         };
         const result = await userCollection.updateOne(filter, updateDoc);
         res.send(result);
-      } else {
-        res.status(403).send({ message: "Forbidden access" });
       }
-    });
+    );
     // store or update user login info means has or not
     app.put("/user/:email", async (req, res) => {
       const email = req.params.email;
@@ -147,10 +157,24 @@ const run = async () => {
       res.send({ success: true, result });
     });
 
+    // get all doctors
+    app.get("/doctor", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await doctorCollection.find().toArray();
+      res.send(result);
+    });
+
     // store doctor in database
-    app.post("/doctor", verifyToken, async (req, res) => {
+    app.post("/doctor", verifyToken, verifyAdmin, async (req, res) => {
       const doctor = req.body;
       const result = await doctorCollection.insertOne(doctor);
+      res.send(result);
+    });
+    // delete doctor from database
+    app.delete("/doctor/:email", verifyToken, verifyAdmin, async (req, res) => {
+      const email = req.params.email;
+      const filter = { email };
+      const result = await doctorCollection.deleteOne(filter);
+      console.log(filter, result);
       res.send(result);
     });
   } finally {
