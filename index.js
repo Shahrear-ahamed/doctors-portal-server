@@ -192,6 +192,7 @@ const run = async () => {
         query,
         updatedDoc
       );
+      
       res.send(updatedBooking);
     });
 
